@@ -49,6 +49,21 @@ app.get('/book/:id',async(req,res) => {
 
     res.send(result)
 })
+
+app.patch('/book/:id',async(req,res)=>{
+  const {id} = req.params
+  const updataData = req.body
+  console.log(updataData);
+  const result = await bookCollection.updateOne(
+      { _id: new ObjectId(id)},
+      { $set: updataData}
+  )
+  res.json(result)
+})
+
+
+
+// http://localhost:8000/book/:id
 app.get('/',(req,res)=>{
     res.send({messege:'server is running fine'})
 })

@@ -75,10 +75,25 @@ app.delete("/book/:id",async(req,res) => {
 app.post('/borrows', async (req, res) => {
   const { bookId, bookTitle, bookImage, userEmail, borrowDate, returnDate } = req.body
 
+ 
+  const existing = await borrowCollection.findOne({ bookId, userEmail })
+  if (existing) {
+    return res.status(409).send({ message: "You have already borrowed this book." })
+  }
+
+  // 📉 Available Copies — $inc diye -1 (0 hole borrow jabe na)
+  const updated = await bookCollection.findOneAndUpdate(
+    { _id: new ObjectId(bookId), availableCopies: { $gt: 0 } },
+    { $inc: { availableCopies: -1 } },
+    { returnDocument: "after" }
+  )
+  if (!updated) {
+    return res.status(409).send({ message: "No copies available." })
+  }
+
   const result = await borrowCollection.insertOne({ bookId, bookTitle, bookImage, userEmail, borrowDate, returnDate })
   res.status(201).send(result)
 })
-
 app.get('/borrows', async (req, res) => {
   const result = await borrowCollection.find({ userEmail: req.query.email }).toArray()
   res.send(result)
@@ -88,14 +103,25 @@ app.get('/borrows', async (req, res) => {
 
 
 // http://localhost:8000/book/:id
-app.get('/',(req,res)=>{
-    res.send({messege:'server is running fine'})
-})
+
 
 
 app.delete('/borrows/:id', async (req, res) => {
+  const borrow = await borrowCollection.findOne({ _id: new ObjectId(req.params.id) })
+  if (!borrow) return res.status(404).send({ message: "Borrow not found." })
+
+ 
+  await bookCollection.updateOne(
+    { _id: new ObjectId(borrow.bookId) },
+    { $inc: { availableCopies: 1 } }
+  )
+
   const result = await borrowCollection.deleteOne({ _id: new ObjectId(req.params.id) })
   res.json(result)
+})
+
+app.get('/',(req,res)=>{
+    res.send({messege:'server is running fine'})
 })
 
 app.listen(PORT,()=>{

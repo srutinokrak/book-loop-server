@@ -79,7 +79,10 @@ app.post('/borrows', async (req, res) => {
   res.status(201).send(result)
 })
 
-
+app.get('/borrows', async (req, res) => {
+  const result = await borrowCollection.find({ userEmail: req.query.email }).toArray()
+  res.send(result)
+})
 // http://localhost:8000/book/:id
 app.get('/',(req,res)=>{
     res.send({messege:'server is running fine'})

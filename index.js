@@ -81,7 +81,7 @@ app.post('/borrows', async (req, res) => {
     return res.status(409).send({ message: "You have already borrowed this book." })
   }
 
-  // 📉 Available Copies — $inc diye -1 (0 hole borrow jabe na)
+
   const updated = await bookCollection.findOneAndUpdate(
     { _id: new ObjectId(bookId), availableCopies: { $gt: 0 } },
     { $inc: { availableCopies: -1 } },

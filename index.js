@@ -27,7 +27,8 @@ const mongoClient = await connectToMongoDB()
 const db = mongoClient.db("booknook")
 
 const bookCollection = db.collection('books')
- 
+const borrowCollection = db.collection('borrows')
+
 app.post('/books/add',async(req,res) => {
   const data = req.body
 
@@ -71,6 +72,12 @@ app.delete("/book/:id",async(req,res) => {
 })
 
 
+app.post('/borrows', async (req, res) => {
+  const { bookId, bookTitle, bookImage, userEmail, borrowDate, returnDate } = req.body
+
+  const result = await borrowCollection.insertOne({ bookId, bookTitle, bookImage, userEmail, borrowDate, returnDate })
+  res.status(201).send(result)
+})
 
 
 // http://localhost:8000/book/:id

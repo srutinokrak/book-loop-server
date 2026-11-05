@@ -2,6 +2,7 @@ import express from 'express'
 import 'dotenv/config'
 import { MongoClient, ObjectId } from 'mongodb';
 import cors from "cors";
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 
 const app = express()
@@ -19,7 +20,7 @@ export async function connectToMongoDB() {
     console.log("You successfully connected to mongoDB");
     return client;
   } catch (err) {
-    console.dir(err);
+    console.log(err);
   }
 }
 
@@ -29,8 +30,38 @@ const db = mongoClient.db("booknook")
 const bookCollection = db.collection('books')
 const borrowCollection = db.collection('borrows')
 
-app.post('/books/add',async(req,res) => {
+
+const verifyToken = async(req,res,next) =>{
+  const authHeader = req.headers.authorization
+
+  if(!authHeader){
+    return res.status(401).send({ msg: "unauthorized" });
+  }
+
+  const token = authHeader.split(" ")[1]
+
+  if(!token){
+    return res.status(401).send({msg: "unauthorized"})
+  }
+
+  const JWKS = createRemoteJWKSet(new URL(`${process.env.CLIENT_URL}/api/auth/jwks`))
+
+  try{
+    const { payload } = await jwtVerify(token, JWKS)
+    console.log(payload);
+    next()
+
+  }catch(err){
+    return res.status(401).send({msg: "unauthorized"})
+  }
+}
+
+
+
+app.post('/books',verifyToken,async(req,res) => {
   const data = req.body
+  const addedAt = new Date()
+  data.addedAt = addedAt;
 
   const result = await bookCollection.insertOne(data)
    console.log(result);
@@ -42,7 +73,7 @@ app.get('/books',async(req,res) => {
   res.send(result)
 })
 
-app.get('/book/:id',async(req,res) => {
+app.get('/book/:id',verifyToken,async(req,res) => {
     const {id} = req.params
    const result = await bookCollection.findOne({
     _id: new ObjectId(id)
@@ -51,10 +82,9 @@ app.get('/book/:id',async(req,res) => {
     res.send(result)
 })
 
-app.patch('/book/:id',async(req,res)=>{
+app.patch('/books/:id',verifyToken,async(req,res)=>{
   const {id} = req.params
   const updataData = req.body
-  console.log(updataData);
   const result = await bookCollection.updateOne(
       { _id: new ObjectId(id)},
       { $set: updataData}
@@ -63,7 +93,7 @@ app.patch('/book/:id',async(req,res)=>{
 })
 
 
-app.delete("/book/:id",async(req,res) => {
+app.delete("/book/:id",verifyToken,async(req,res) => {
   const {id} = req.params
   const result = await bookCollection.deleteOne({
     _id: new ObjectId(id),
@@ -72,10 +102,9 @@ app.delete("/book/:id",async(req,res) => {
 })
 
 
-app.post('/borrows', async (req, res) => {
+app.post('/borrows', verifyToken, async (req, res) => {
   const { bookId, bookTitle, bookImage, userEmail, borrowDate, returnDate } = req.body
 
- 
   const existing = await borrowCollection.findOne({ bookId, userEmail })
   if (existing) {
     return res.status(409).send({ message: "You have already borrowed this book." })
@@ -94,19 +123,29 @@ app.post('/borrows', async (req, res) => {
   const result = await borrowCollection.insertOne({ bookId, bookTitle, bookImage, userEmail, borrowDate, returnDate })
   res.status(201).send(result)
 })
-app.get('/borrows', async (req, res) => {
+
+
+app.get('/borrows', verifyToken, async (req, res) => {
   const result = await borrowCollection.find({ userEmail: req.query.email }).toArray()
   res.send(result)
 })
 
 
+app.get("/new-arrivals", async (req, res) => {
+  const limit = Number(req.query.limit);
+  const take = Number.isInteger(limit) && limit > 0 ? limit : 6;
+
+  const result = await bookCollection
+    .find({})
+    .sort({ addedAt: -1, _id: -1 })
+    .limit(take)
+    .toArray();
+
+  res.json(result);
+});
 
 
-// http://localhost:8000/book/:id
-
-
-
-app.delete('/borrows/:id', async (req, res) => {
+app.delete('/borrows/:id', verifyToken, async (req, res) => {
   const borrow = await borrowCollection.findOne({ _id: new ObjectId(req.params.id) })
   if (!borrow) return res.status(404).send({ message: "Borrow not found." })
 
@@ -127,3 +166,5 @@ app.get('/',(req,res)=>{
 app.listen(PORT,()=>{
     console.log(`server is running at ${PORT}`);
 })
+
+export default app
